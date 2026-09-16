@@ -87,6 +87,10 @@ function toggleRow({ name, hint, input }) {
  */
 export function createPlayer(opts = {}) {
   const prefs = new LocalPrefs("shadowplay.playback.v2", {
+    // Everything the listener does is off until asked for: this is a video player
+    // first. Segmentation used to be on by default, so opening any clip meant it
+    // started pausing itself at every silence.
+    autoSeg: false,
     rewindOn: false,
     rewindSpeed: 0.5,
     frameOn: false,
@@ -103,6 +107,20 @@ export function createPlayer(opts = {}) {
   const loopCanvas = h("canvas.loop-canvas");
   const emptyBox = h("div.p-empty");
   const stage = h("div.p-stage", video, loopCanvas, emptyBox);
+
+  /**
+   * Size the stage to the video. Without this every clip sat in a 16:9 box, so
+   * anything portrait or 4:3 was letterboxed inside a frame that was the wrong shape
+   * to begin with. Reset on each new source, or the previous clip's shape sticks.
+   */
+  function fitStage() {
+    const w = video.videoWidth;
+    const h2 = video.videoHeight;
+    if (w > 0 && h2 > 0) stage.style.setProperty("--ar", String(w / h2));
+    else stage.style.removeProperty("--ar");
+  }
+  video.addEventListener("loadedmetadata", fitStage);
+  video.addEventListener("emptied", () => stage.style.removeProperty("--ar"));
 
   const statusText = h("span", "待载入");
   const status = h("div.p-status", { dataset: { state: "none" } }, h("span.led"), statusText);
@@ -185,7 +203,7 @@ export function createPlayer(opts = {}) {
   const gapInput = slider({ min: 100, max: 2000, step: 50, value: 600 });
   const ctlGap = control({ name: "停顿判定时长", valueEl: gapVal, input: gapInput, hint: "静音持续超过这个时间才暂停。调长可避免词间停顿被误断。" });
 
-  const autoSeg = h("input", { type: "checkbox", checked: true });
+  const autoSeg = h("input", { type: "checkbox", checked: prefs.get("autoSeg") });
   const rewindCb = h("input", { type: "checkbox", checked: prefs.get("rewindOn") });
   const rewindSpeed = slider({ min: 0.25, max: 1.5, step: 0.05, value: prefs.get("rewindSpeed") });
   const rewindSpeedVal = h("span.ctl-val", "0.50×");
@@ -268,6 +286,9 @@ export function createPlayer(opts = {}) {
 
   // ---- engine ------------------------------------------------------------------
   const engine = new PlayerEngine({ video, stage, canvas: loopCanvas });
+  // Push the UI's state in rather than relying on the two defaults happening to agree:
+  // the engine segments by default (that is its job), the player does not.
+  engine.set("autoSeg", autoSeg.checked);
   engine.rewindOn = prefs.get("rewindOn");
   engine.rewindRate = prefs.get("rewindSpeed");
   engine.frameOn = prefs.get("frameOn");
@@ -358,7 +379,10 @@ export function createPlayer(opts = {}) {
       pushCurrent();
     });
   }
-  autoSeg.addEventListener("change", () => engine.set("autoSeg", autoSeg.checked));
+  autoSeg.addEventListener("change", () => {
+    prefs.set("autoSeg", autoSeg.checked);
+    engine.set("autoSeg", autoSeg.checked);
+  });
 
   presetSel.addEventListener("change", () => {
     if (presetSel.value !== "__custom__") presets.select(presetSel.value);

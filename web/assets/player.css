@@ -25,7 +25,14 @@
 
 .p-stage {
   position: relative; width: 100%;
-  aspect-ratio: 16/9; max-height: calc(100dvh - 240px);
+  /* --ar is set from the video's real dimensions on loadedmetadata (player/ui.js);
+     16/9 is only the placeholder shown before that arrives. The matching max-width is
+     what stops a portrait video from sitting in a full-width box with huge black bars:
+     once max-height caps the box, the width has to come down with it. */
+  aspect-ratio: var(--ar, 16/9);
+  max-height: var(--stage-max, calc(100dvh - 240px));
+  max-width: calc(var(--stage-max, calc(100dvh - 240px)) * var(--ar, 1.7778));
+  margin-inline: auto;
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
   overflow: hidden; display: grid; place-items: center;
 }
@@ -167,7 +174,7 @@
 .p-foot kbd { padding: 2px 7px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
 
 @media (max-width: 640px) {
-  .p-stage { border-radius: 10px; max-height: 56vh; }
+  .p-stage { border-radius: 10px; --stage-max: 56vh; }
   .seekwrap { order: 5; width: 100%; flex-basis: 100%; }
   .vol { width: 68px; }
 }
