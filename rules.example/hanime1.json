@@ -1,0 +1,90 @@
+{
+  "id": "hanime1",
+  "name": "Hanime1",
+  "version": 1,
+  "baseUrl": "https://hanimeone.me",
+  "allowedHosts": [
+    "hanimeone.me",
+    "hembed.com"
+  ],
+  "charset": "utf-8",
+  "proxyImages": true,
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://hanimeone.me/"
+  },
+  "discover": [
+    {
+      "name": "最新",
+      "url": "/search?page={page}",
+      "page": {
+        "start": 1,
+        "step": 1
+      },
+      "list": {
+        "item": "a[href*=\"/watch?v=\"]",
+        "title": ".title@text||.home-rows-videos-title@text",
+        "cover": ".main-thumb@src||.video-card-inner img@src||img@src",
+        "url": "@href"
+      }
+    },
+    {
+      "name": "裏番",
+      "url": "/search?genre=裏番&page={page}",
+      "page": {
+        "start": 1,
+        "step": 1
+      },
+      "list": {
+        "item": "a[href*=\"/watch?v=\"]",
+        "title": ".title@text||.home-rows-videos-title@text",
+        "cover": ".main-thumb@src||.video-card-inner img@src||img@src",
+        "url": "@href"
+      }
+    }
+  ],
+  "search": {
+    "url": "/search?query={kw}&page={page}",
+    "page": {
+      "start": 1,
+      "step": 1
+    },
+    "list": {
+      "item": "a[href*=\"/watch?v=\"]",
+      "title": ".title@text||.home-rows-videos-title@text",
+      "cover": ".main-thumb@src||.video-card-inner img@src||img@src",
+      "url": "@href"
+    }
+  },
+  "detail": {
+    "title": "#shareBtn-title@text",
+    "cover": "#player@poster",
+    "intro": ".video-caption-text@text",
+    "episodes": {
+      "item": "link[rel=canonical]",
+      "title": "@data-x",
+      "url": "@href"
+    },
+    "tags": {
+      "item": ".single-video-tag a[href^=\"/search\"]",
+      "strip": "^\\s*#\\s*|^search\\.|\\s*\\(\\d+\\)\\s*$"
+    }
+  },
+  "video": {
+    "match": [
+      {
+        "from": "selector",
+        "selector": "#player source@src"
+      },
+      {
+        "from": "selector",
+        "selector": "video source@src"
+      },
+      {
+        "from": "regex",
+        "regex": "(https?:[^\"'<> ]+\\.mp4[^\"'<> ]*)",
+        "group": 1
+      }
+    ]
+  }
+}

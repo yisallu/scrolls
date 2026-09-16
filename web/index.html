@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0a0b10" />
+<!-- run chrome-free when installed to the home screen (the only way to hide browser UI on iOS) -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>千卷</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/app.css" />
+<link rel="stylesheet" href="/assets/player.css" />
+<script>
+  // Renamed from shadowtv → scrolls. Carry the old preferences over before anything
+  // reads them: this runs ahead of every module, so no code below ever has to know
+  // there was another name. Idempotent, and it never overwrites a newer value.
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("shadowtv.")) {
+        const to = "scrolls." + k.slice("shadowtv.".length);
+        if (localStorage.getItem(to) === null) localStorage.setItem(to, localStorage.getItem(k));
+      }
+    }
+  } catch (e) {}
+  // Applied before first paint so the page never flashes the wrong palette.
+  try {
+    const t = localStorage.getItem("scrolls.theme");
+    if (t) document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+</head>
+<body>
+<header class="topnav" id="topnav">
+  <a class="brand" href="/" data-link>
+    <span class="brand-dot" aria-hidden="true"></span><span class="brand-text">千卷</span>
+  </a>
+
+  <nav class="sites" id="siteNav" aria-label="站点"></nav>
+
+  <form class="searchbar" id="searchForm" role="search">
+    <span class="s-ico" aria-hidden="true">⌕</span>
+    <input id="searchInput" type="search" placeholder="搜索…" autocomplete="off" enterkeyhint="search" aria-label="搜索" />
+  </form>
+
+  <div class="menu-wrap">
+    <button class="icon-btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-label="菜单">⋯</button>
+    <div class="menu" id="menu" hidden>
+      <a class="menu-item" href="/history" data-link data-nav="history">继续观看</a>
+      <a class="menu-item" href="/favorites" data-link data-nav="favorites">收藏</a>
+      <div class="menu-sep"></div>
+      <a class="menu-item" href="/rules" data-link data-nav="rules">规则</a>
+      <a class="menu-item" href="/player.html">本地播放</a>
+      <div class="menu-sep"></div>
+      <div class="menu-label">外观</div>
+      <div class="theme-row" id="themeRow"></div>
+    </div>
+  </div>
+</header>
+
+<main class="view" id="view" tabindex="-1">
+  <div class="skeleton-grid" aria-hidden="true"></div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

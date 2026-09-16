@@ -1,0 +1,42 @@
+{
+  "id": "iwara",
+  "name": "Iwara",
+  "type": "image",
+  "provider": "iwara",
+  "version": 1,
+  "baseUrl": "https://www.iwara.tv",
+  "allowedHosts": [
+    "iwara.tv"
+  ],
+  "proxyImages": true,
+  "postUrl": "https://www.iwara.tv/video/{id}",
+  "discover": [
+    {
+      "name": "最新",
+      "params": {
+        "sort": "date",
+        "rating": "all"
+      }
+    },
+    {
+      "name": "趋势",
+      "params": {
+        "sort": "trending",
+        "rating": "all"
+      }
+    },
+    {
+      "name": "人气",
+      "params": {
+        "sort": "popularity",
+        "rating": "all"
+      }
+    }
+  ],
+  "search": {
+    "params": {
+      "sort": "date",
+      "rating": "all"
+    }
+  }
+}

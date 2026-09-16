@@ -1,0 +1,201 @@
+{
+  "id": "exhentai",
+  "name": "ExHentai",
+  "type": "image",
+  "gallery": true,
+  "version": 1,
+  "baseUrl": "https://exhentai.org",
+  "allowedHosts": [
+    "exhentai.org",
+    "e-hentai.org",
+    "hath.network"
+  ],
+  "proxyImages": true,
+  "idRegex": "/g/(\\d+)/([0-9a-z]+)",
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://exhentai.org/",
+    "Cookie": "***"
+  },
+  "discover": [
+    {
+      "name": "最新",
+      "url": "https://exhentai.org/?page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href"
+    },
+    {
+      "name": "同人誌",
+      "url": "https://exhentai.org/?f_cats=1021&page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/?f_search={kw}&f_cats=1021&page={page}"
+    },
+    {
+      "name": "漫画",
+      "url": "https://exhentai.org/?f_cats=1019&page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/?f_search={kw}&f_cats=1019&page={page}"
+    },
+    {
+      "name": "CG画集",
+      "url": "https://exhentai.org/?f_cats=999&page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/?f_search={kw}&f_cats=999&page={page}"
+    },
+    {
+      "name": "GameCG",
+      "url": "https://exhentai.org/?f_cats=1007&page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/?f_search={kw}&f_cats=1007&page={page}"
+    },
+    {
+      "name": "Cosplay",
+      "url": "https://exhentai.org/?f_cats=959&page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/?f_search={kw}&f_cats=959&page={page}"
+    },
+    {
+      "name": "收藏",
+      "url": "https://exhentai.org/favorites.php?page={page}",
+      "page": {
+        "start": 0,
+        "step": 1
+      },
+      "list": {
+        "item": ".gl1t, .gl1e, .itg tr",
+        "url": "a[href*='/g/']@href",
+        "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+        "cover": "img@src||img@data-src",
+        "width": "img@width||img@style",
+        "height": "img@height||img@style"
+      },
+      "cursor": "#unext@href",
+      "searchUrl": "https://exhentai.org/favorites.php?f_search={kw}&page={page}"
+    }
+  ],
+  "search": {
+    "url": "https://exhentai.org/?f_search={kw}&page={page}",
+    "page": {
+      "start": 0,
+      "step": 1
+    },
+    "list": {
+      "item": ".gl1t, .gl1e, .itg tr",
+      "url": "a[href*='/g/']@href",
+      "title": ".glink@text||a[href*='/g/'] img@title||img@title",
+      "cover": "img@src||img@data-src",
+      "width": "img@width||img@style",
+      "height": "img@height||img@style"
+    },
+    "cursor": "#unext@href"
+  },
+  "galleryRule": {
+    "url": "https://exhentai.org/g/{id}/?p={page}",
+    "page": {
+      "start": 0,
+      "step": 1
+    },
+    "title": "#gn@text||#gj@text",
+    "count": ".gpc@text",
+    "tags": "#taglist a[href*='/tag/']",
+    "item": "#gdt a[href*='/s/']"
+  },
+  "imageRule": {
+    "match": [
+      {
+        "from": "selector",
+        "selector": "#img@src",
+        "variant": "sample"
+      },
+      {
+        "from": "selector",
+        "selector": "a[href*='/fullimg/']@href",
+        "variant": "original"
+      }
+    ]
+  },
+  "streamConcurrency": 4,
+  "excludeTitle": "立ち?絵|立绘|character\\s*(cg|sprite)|tachie",
+  "favorite": {
+    "url": "https://exhentai.org/gallerypopups.php?gid={id0}&t={id1}&act=addfav",
+    "catField": "favcat",
+    "noteField": "favnote",
+    "submitField": "apply",
+    "removeValue": "favdel",
+    "cats": "input[name='favcat']",
+    "fields": {
+      "update": "1"
+    }
+  }
+}

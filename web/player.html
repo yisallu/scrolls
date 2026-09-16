@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0f13" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>千卷 · ShadowPlay</title>
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/app.css" />
+<link rel="stylesheet" href="/assets/player.css" />
+<script>
+  // same palette as the library, applied before first paint
+  try {
+    const t = localStorage.getItem("scrolls.theme") || localStorage.getItem("shadowtv.theme");
+    if (t) document.documentElement.dataset.theme = t;
+  } catch (e) {}
+</script>
+<style>
+  /* Standalone: no sidebar, just the player centred on the page. */
+  body { padding: 0; }
+  .standalone { max-width: 1180px; margin: 0 auto; padding: 16px clamp(12px, 3vw, 28px) 60px; }
+  .sa-top { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .sa-top .brand { padding: 0; font-size: 16px; }
+  .sa-top .grow { margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="standalone">
+  <div class="sa-top">
+    <a class="brand" href="/"><span class="brand-dot"></span><span class="brand-text">千卷<b>ShadowPlay</b></span></a>
+    <span class="grow"></span>
+    <a class="btn sm" href="/">← 片库</a>
+  </div>
+  <div id="host"></div>
+  <div class="p-foot" style="margin-top:16px">
+    <b>有声则播 · 静音则停 · 点击继续</b><br />
+    <kbd>空格</kbd> 播放/暂停　<kbd>←</kbd> <kbd>→</kbd> 退/进 5 秒　<kbd>R</kbd> 重听本句　<kbd>F</kbd> 全屏<br />
+    <b>帧播放</b> 滚轮逐帧　点击画面进一帧(<kbd>Shift</kbd>+点击退一帧)
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script type="module" src="/src/player/standalone.js"></script>
+</body>
+</html>

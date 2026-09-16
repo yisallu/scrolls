@@ -1,0 +1,97 @@
+{
+  "id": "ttvlog",
+  "name": "糖糖vlog",
+  "version": 1,
+  "baseUrl": "https://ttvlog.com",
+  "allowedHosts": [
+    "ttvlog.com"
+  ],
+  "charset": "utf-8",
+  "proxyImages": true,
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://ttvlog.com/"
+  },
+  "discover": [
+    {
+      "name": "最新",
+      "url": "/latest-updates/?from={page}&lang=zh",
+      "page": {
+        "start": 0,
+        "step": 24
+      },
+      "list": {
+        "item": ".video-img-box",
+        "title": "img@alt",
+        "cover": "img@data-src",
+        "url": "a@href"
+      }
+    },
+    {
+      "name": "热门",
+      "url": "/hot/?from={page}&lang=zh",
+      "page": {
+        "start": 0,
+        "step": 24
+      },
+      "list": {
+        "item": ".video-img-box",
+        "title": "img@alt",
+        "cover": "img@data-src",
+        "url": "a@href"
+      }
+    },
+    {
+      "name": "新作",
+      "url": "/new-release/?from={page}&lang=zh",
+      "page": {
+        "start": 0,
+        "step": 24
+      },
+      "list": {
+        "item": ".video-img-box",
+        "title": "img@alt",
+        "cover": "img@data-src",
+        "url": "a@href"
+      }
+    }
+  ],
+  "search": {
+    "url": "/search/{kw}/?lang=zh",
+    "paginate": false,
+    "list": {
+      "item": ".video-img-box",
+      "title": "img@alt",
+      "cover": "img@data-src",
+      "url": "a@href"
+    }
+  },
+  "detail": {
+    "title": "h1.h4@text",
+    "cover": "meta[property=\"og:image\"]@content",
+    "intro": "meta[property=\"og:description\"]@content",
+    "episodes": {
+      "item": "link[rel=canonical]",
+      "url": "@href"
+    },
+    "tags": {
+      "item": "h5.tags a[href*=\"/tags/\"]"
+    }
+  },
+  "video": {
+    "match": [
+      {
+        "from": "regex",
+        "regex": "\\/contents\\/media\\/hls\\/\\d+\\/index\\.m3u8",
+        "group": 0
+      }
+    ]
+  },
+  "hlsAuth": {
+    "keyPathRegex": "^/api/hls/key/(\\d+)$",
+    "initPath": "/api/hls/init/{1}",
+    "cookieNames": [
+      "site_hls_token"
+    ]
+  }
+}

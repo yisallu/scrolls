@@ -1,0 +1,114 @@
+{
+  "id": "sankaku",
+  "name": "Sankaku",
+  "type": "image",
+  "version": 1,
+  "baseUrl": "https://sankakuapi.com",
+  "allowedHosts": [
+    "sankakuapi.com",
+    "sankakucomplex.com"
+  ],
+  "proxyImages": true,
+  "postUrl": "https://www.sankakucomplex.com/posts/{id}",
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "accept": "application/vnd.sankaku.api+json;v=2",
+    "api-version": "2",
+    "platform": "web-app",
+    "origin": "https://www.sankakucomplex.com",
+    "referer": "https://www.sankakucomplex.com/",
+    "Cookie": "***"
+  },
+  "discover": [
+    {
+      "name": "安全",
+      "url": "https://sankakuapi.com/posts/keyset?lang=en&limit=40&tags=rating:safe",
+      "json": {
+        "items": "data",
+        "next": "meta.next",
+        "fields": {
+          "id": "id",
+          "thumb": "preview_url",
+          "image": "sample_url||file_url||preview_url",
+          "fileType": "file_type",
+          "width": "width",
+          "height": "height",
+          "tags": "tag_names"
+        }
+      }
+    },
+    {
+      "name": "热门",
+      "url": "https://sankakuapi.com/posts/keyset?lang=en&limit=40&tags=order:popular",
+      "json": {
+        "items": "data",
+        "next": "meta.next",
+        "fields": {
+          "id": "id",
+          "thumb": "preview_url",
+          "image": "sample_url||file_url||preview_url",
+          "fileType": "file_type",
+          "width": "width",
+          "height": "height",
+          "tags": "tag_names"
+        }
+      }
+    },
+    {
+      "name": "最新",
+      "url": "https://sankakuapi.com/posts/keyset?lang=en&limit=40&tags=",
+      "json": {
+        "items": "data",
+        "next": "meta.next",
+        "fields": {
+          "id": "id",
+          "thumb": "preview_url",
+          "image": "sample_url||file_url||preview_url",
+          "fileType": "file_type",
+          "width": "width",
+          "height": "height",
+          "tags": "tag_names"
+        }
+      }
+    }
+  ],
+  "search": {
+    "url": "https://sankakuapi.com/posts/keyset?lang=en&limit=40&tags={kw}",
+    "json": {
+      "items": "data",
+      "next": "meta.next",
+      "fields": {
+        "id": "id",
+        "thumb": "preview_url",
+        "image": "sample_url||file_url||preview_url",
+        "fileType": "file_type",
+        "width": "width",
+        "height": "height",
+        "tags": "tag_names"
+      }
+    }
+  },
+  "imageRule": {
+    "detailUrl": "https://chan.sankakucomplex.com/posts/{id}",
+    "match": [
+      {
+        "from": "selector",
+        "selector": "#image@src"
+      },
+      {
+        "from": "selector",
+        "selector": "video source@src"
+      },
+      {
+        "from": "selector",
+        "selector": "#highres@href"
+      }
+    ],
+    "jsonDetailUrl": "https://sankakuapi.com/v2/posts?lang=en&page=1&limit=1&tags=id_range:{id}",
+    "jsonHeadersMode": "public",
+    "jsonFields": {
+      "url": "file_url||sample_url||preview_url",
+      "fileType": "file_type"
+    }
+  }
+}

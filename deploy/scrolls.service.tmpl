@@ -1,0 +1,35 @@
+[Unit]
+Description=千卷 (scrolls) — @NAME@
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scrolls
+Group=scrolls
+WorkingDirectory=@REMOTE@
+Environment=NODE_ENV=production
+Environment=PORT=@PORT@
+Environment=HOST=@BIND@
+Environment=DATA_DIR=@REMOTE@/data
+ExecStart=/usr/bin/node @REMOTE@/server/main.js
+Restart=on-failure
+RestartSec=3
+
+# Host-specific settings (an outbound proxy for geo-blocked CDNs, a different
+# sidecar port, …) belong in a drop-in so this file can be replaced by a deploy:
+#   /etc/systemd/system/@NAME@.service.d/override.conf
+
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@REMOTE@/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

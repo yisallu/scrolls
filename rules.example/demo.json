@@ -1,0 +1,52 @@
+{
+  "id": "demo",
+  "name": "示例",
+  "version": 1,
+  "baseUrl": "https://web.sysmeng.com",
+  "allowedHosts": [
+    "web.sysmeng.com",
+    "yisal.eu.org",
+    "download.blender.org",
+    "devstreaming-cdn.apple.com"
+  ],
+  "charset": "utf-8",
+  "discover": [
+    {
+      "name": "全部",
+      "url": "/mock/index.html",
+      "page": {
+        "start": 1,
+        "step": 1
+      },
+      "list": {
+        "item": ".v-card",
+        "title": ".v-title@text",
+        "cover": ".v-cover@src",
+        "url": "@href"
+      }
+    }
+  ],
+  "detail": {
+    "title": ".title@text",
+    "cover": ".poster@src",
+    "intro": ".synopsis@text",
+    "episodes": {
+      "item": ".episodes a.ep",
+      "title": "@text",
+      "url": "@href"
+    }
+  },
+  "video": {
+    "match": [
+      {
+        "from": "selector",
+        "selector": "video source@src"
+      },
+      {
+        "from": "regex",
+        "regex": "(https?:[^\"']+\\.m3u8[^\"']*)",
+        "group": 1
+      }
+    ]
+  }
+}

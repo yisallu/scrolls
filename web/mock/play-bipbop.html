@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Apple BipBop — 播放</title>
+<!-- resolve via regex matcher: it picks the .m3u8 out of this inline config blob.
+     video.match = [ {from:"selector", selector:"video source@src"},
+                     {from:"regex", regex:"(https?:[^\"']+\\.m3u8[^\"']*)", group:1} ] -->
+<script>
+  var playerConfig = {
+    "title": "BipBop",
+    "file": "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8"
+  };
+</script>
