@@ -7,6 +7,7 @@ import config from "./config.js";
 import { openUpstream, readAll, buildHeaders } from "./lib/fetcher.js";
 import { providerHealthy } from "./engine/provider.js";
 import { redactRule } from "./engine/rule-schema.js";
+import { w2xCacheKey } from "./media/page.js";
 
 export function createApiRouter({ rules, engine, prefs, library, pageCache = null, w2x = null, startedAt }) {
   const api = new Router({ prefix: "/api" });
@@ -40,6 +41,22 @@ export function createApiRouter({ rules, engine, prefs, library, pageCache = nul
   // Is the desktop GPU worker connected? The reader greys out waifu2x when it is not,
   // rather than queueing work nobody will ever pick up.
   api.get("/w2x/online", () => ({ online: !!w2x && w2x.online, ...(w2x ? w2x.stats() : {}) }));
+
+  // The reader opened a page that a prefetch already queued at the back. Pull it
+  // forward. The image URL itself does not change, so this is a separate call.
+  api.get("/w2x/focus", (ctx) => {
+    if (!w2x) return { ok: false };
+    const site = ctx.q("site");
+    const id = ctx.q("id");
+    if (!site || !id) throw httpErr(400, "缺少 id", "bad_request");
+    const { key } = w2xCacheKey(site, id, {
+      model: ctx.q("model"),
+      noise: ctx.query.has("noise") ? ctx.q("noise") : undefined,
+      scale: ctx.query.has("scale") ? ctx.q("scale") : undefined,
+    });
+    const priority = Math.max(0, Math.min(2, ctx.int("priority", 2)));
+    return { ok: w2x.boost(key, priority) };
+  });
 
   // ---- browsing ----------------------------------------------------------------
 

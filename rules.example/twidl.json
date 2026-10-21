@@ -1,0 +1,60 @@
+{
+  "id": "twidl",
+  "name": "Twi-DL 保管库",
+  "version": 1,
+  "type": "video",
+  "baseUrl": "https://www.twi-dl.net",
+  "allowedHosts": ["twi-dl.net", "www.twi-dl.net", "twimg.com"],
+  "charset": "utf-8",
+  "proxyImages": true,
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  },
+  "discover": [
+    {
+      "name": "保管库",
+      "url": "/hozon.php?p={page}",
+      "page": { "start": 1, "step": 1 },
+      "list": {
+        "item": "a[href*='v.php?video=']",
+        "cover": "img@data-src||img@src",
+        "url": "@href"
+      }
+    },
+    {
+      "name": "排行榜",
+      "url": "/rank.php",
+      "paginate": false,
+      "list": {
+        "item": "a[href*='v.php?video=']",
+        "cover": "img@data-src||img@src",
+        "url": "@href"
+      }
+    }
+  ],
+  "search": {
+    "url": "/r.php?k={kw}&p={page}",
+    "page": { "start": 1, "step": 1 },
+    "list": {
+      "item": "a[href*='v.php?video=']",
+      "cover": "img@data-src||img@src",
+      "url": "@href"
+    }
+  },
+  "detail": {
+    "title": "h2.text-xl a@text",
+    "cover": "video@poster",
+    "intro": "p.whitespace-pre-wrap@text",
+    "episodes": {
+      "item": "a[href*='/j/']",
+      "url": "@href"
+    }
+  },
+  "video": {
+    "match": [
+      { "from": "selector", "selector": "video source@src" },
+      { "from": "regex", "regex": "https:\\\\?/\\\\?/video\\.twimg\\.com[^\"']+?\\.m3u8" },
+      { "from": "regex", "regex": "https:\\\\?/\\\\?/video\\.twimg\\.com[^\"']+?\\.mp4" }
+    ]
+  }
+}

@@ -99,17 +99,23 @@ export function createPageLoader(engine, cache) {
 
 const W2X_MODELS = new Set(["models-cunet", "models-upconv_7_anime_style_art_rgb", "models-upconv_7_photo"]);
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const finite = (v, d) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
 
 /**
  * The waifu2x settings are part of the cache identity: the same page at noise=1 and
  * noise=3 are different pictures, and keying them both as "w2x" would serve whichever
- * was produced first forever.
+ * was produced first forever. `key` is the broker's priority key and is NOT part of
+ * the cache path — priority must not fork the cached file.
  */
-function w2xVariant(ctx) {
-  const model = W2X_MODELS.has(ctx.q("model")) ? ctx.q("model") : "models-cunet";
-  const noise = clamp(ctx.int("noise", 1), -1, 3);
-  const scale = clamp(ctx.int("scale", 2), 1, 4);
-  return { key: `w2x-${model.replace("models-", "")}-n${noise}-s${scale}`, opts: { model, noise, scale } };
+export function w2xCacheKey(site, id, q = {}) {
+  const model = W2X_MODELS.has(q.model) ? q.model : "models-cunet";
+  const noise = clamp(finite(q.noise, 1), -1, 3);
+  const scale = clamp(finite(q.scale, 2), 1, 4);
+  const variant = `w2x-${model.replace("models-", "")}-n${noise}-s${scale}`;
+  return { variant, opts: { model, noise, scale }, key: `${site}\n${id}\n${variant}` };
 }
 
 export function createPageHandler(rules, engine, cache, loader, broker = null) {
@@ -122,10 +128,21 @@ export function createPageHandler(rules, engine, cache, loader, broker = null) {
     const rule = rules.require(site);
 
     let variant = v === "original" ? "original" : "";
-    let opts = {};
+    let spec = null;
+    // 2 = the page on screen, 1 = the next one, 0 = further lookahead. Sent as a
+    // header so the image URL stays stable and the browser can reuse one cache entry.
+    const priority = clamp(finite(ctx.req.headers["x-w2x-priority"], 0), 0, 2);
     if (v === "w2x") {
       if (!broker) throw httpErr(503, "waifu2x 未启用", "worker_offline");
-      ({ key: variant, opts } = w2xVariant(ctx));
+      spec = w2xCacheKey(site, id, {
+        model: ctx.q("model"),
+        noise: ctx.query.has("noise") ? ctx.q("noise") : undefined,
+        scale: ctx.query.has("scale") ? ctx.q("scale") : undefined,
+      });
+      variant = spec.variant;
+      // May land before submit (sample still downloading) or after (already queued
+      // by a prefetch). Both have to end with this page ahead of pure lookahead.
+      if (priority) broker.boost(spec.key, priority);
     }
 
     const got = await loader.load(rule, site, id, variant, {
@@ -136,7 +153,7 @@ export function createPageHandler(rules, engine, cache, loader, broker = null) {
               // quota, and recovering its detail is the whole point of doing this.
               const src = await loader.load(rule, site, id, "");
               const buf = src.cached ? await fsp.readFile(src.file) : src.buf;
-              const out = await broker.submit(buf, opts);
+              const out = await broker.submit(buf, { ...spec.opts, priority, key: spec.key });
               await cache.put(site, id, variant, out.buf, out.contentType);
               return out;
             }

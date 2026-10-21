@@ -11,7 +11,15 @@ import { URL } from "node:url";
 import iconv from "iconv-lite";
 import config from "../config.js";
 import { httpErr } from "./errors.js";
+import { logger } from "./log.js";
 import { assertHostAllowed, agentFor, clientFor } from "./net.js";
+
+const log = logger("fetch");
+
+// ExHentai's session pair. `igneous` lasts ~30 days and is checked on every HTML
+// request; `sk` is the companion key set alongside it. A rejected pair is not a
+// login failure — see igneousLockedOut.
+const EXHENTAI_SESSION = new Set(["igneous", "sk"]);
 
 /** Case-insensitive lookup into a rule's `headers` map. */
 export function ruleHeader(rule, name) {
@@ -135,6 +143,111 @@ export function decodeBody(buf, contentType, forcedCharset) {
 const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** `Set-Cookie` lines → [name, value], attributes stripped. Node keeps this header as an array. */
+export function setCookiePairs(header) {
+  const list = Array.isArray(header) ? header : header ? [header] : [];
+  const out = [];
+  for (const line of list) {
+    const nv = String(line).split(";")[0];
+    const i = nv.indexOf("=");
+    if (i <= 0) continue;
+    out.push([nv.slice(0, i).trim(), nv.slice(i + 1).trim()]);
+  }
+  return out;
+}
+
+export function parseCookieHeader(header) {
+  const map = new Map();
+  for (const part of String(header || "").split(";")) {
+    const i = part.indexOf("=");
+    if (i <= 0) continue;
+    const name = part.slice(0, i).trim();
+    if (name) map.set(name, part.slice(i + 1).trim());
+  }
+  return map;
+}
+
+export function serializeCookie(map) {
+  return [...map.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
+/**
+ * ExHentai's "you are not allowed in" signal, and it is a blank page rather than an
+ * error: HTTP 200, empty body, `Set-Cookie: igneous=mystery`. Sending a stale
+ * `igneous` (it is reissued with a 30-day lifetime) is what causes it — the account
+ * cookies are still good. A real gallery page is tens of KB, so a small body plus
+ * that cookie is unambiguous.
+ */
+export function igneousLockedOut(setCookieHeader, bodyLength) {
+  if (bodyLength > 512) return false;
+  return setCookiePairs(setCookieHeader).some(([k, v]) => k.toLowerCase() === "igneous" && v === "mystery");
+}
+
+/**
+ * Forget the rejected session and keep a fresh one if the retry issued it.
+ * Member cookies (`ipb_*`) are left untouched — those are the actual login.
+ */
+export function adoptExhentaiSession(cookieHeader, setCookieHeader) {
+  const map = parseCookieHeader(cookieHeader);
+  for (const key of [...map.keys()]) if (EXHENTAI_SESSION.has(key.toLowerCase())) map.delete(key);
+  for (const [k, v] of setCookiePairs(setCookieHeader)) {
+    const name = k.toLowerCase();
+    if (!EXHENTAI_SESSION.has(name) || !v || v === "mystery") continue;
+    map.set(name, v);
+  }
+  return serializeCookie(map);
+}
+
+// main.js points this at the rule store so a repaired cookie survives a restart.
+// Absent (tests, one-off scripts) the in-memory rule is still updated.
+let cookieSink = null;
+export function setCookieSink(fn) {
+  cookieSink = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * The same URL again, without the dead session cookies. Returns the decoded page
+ * when the site lets us in, or null when the login itself is gone (so the caller
+ * surfaces the original empty response instead of looping).
+ */
+async function refetchExhentaiSession(rule, urlStr, opts) {
+  const accept = opts.accept || "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8";
+  const { headers = {}, maxBytes } = opts;
+  const sent = headers.Cookie || ruleHeader(rule, "Cookie") || "";
+  const stripped = adoptExhentaiSession(sent, []);
+  const identity = opts.headersMode === "public" ? null : rule;
+  log.info(`exhentai session rejected${rule && rule.id ? ` (${rule.id})` : ""}; retrying without igneous`);
+  const { res, finalUrl } = await openUpstream(rule, urlStr, {
+    headers: buildHeaders(identity, { ...headers, Cookie: stripped || undefined }, {
+      accept,
+      acceptEncoding: "gzip, deflate, br",
+    }),
+  });
+  const status = res.statusCode || 0;
+  const buf = await readAll(res, maxBytes);
+  if (igneousLockedOut(res.headers["set-cookie"], buf.length)) {
+    log.warn("exhentai session refresh failed; login cookies may have expired");
+    return null;
+  }
+  if (rule && rule.headers) {
+    const next = adoptExhentaiSession(sent, res.headers["set-cookie"]);
+    if (next && next !== sent) {
+      rule.headers.Cookie = next;
+      try {
+        cookieSink && cookieSink(rule);
+      } catch (e) {
+        log.warn("session cookie persist failed:", e.message);
+      }
+    }
+  }
+  return {
+    text: decodeBody(buf, res.headers["content-type"] || "", rule && rule.charset),
+    url: finalUrl,
+    status,
+    contentType: res.headers["content-type"] || "",
+  };
+}
+
 /**
  * GET a URL and return decoded text. Retries transient failures with backoff — remote
  * sites hiccup constantly and a single 502 should not surface as a broken grid.
@@ -158,6 +271,13 @@ export async function fetchText(rule, urlStr, opts = {}) {
         continue;
       }
       const buf = await readAll(res, maxBytes);
+      // A dead igneous cookie blanks EVERY exhentai page (the grid, a gallery, favourites)
+      // while the account is still logged in. Retry this one request without it and
+      // remember the replacement, or the next page view blanks too.
+      if (rule && igneousLockedOut(res.headers["set-cookie"], buf.length)) {
+        const healed = await refetchExhentaiSession(rule, urlStr, opts);
+        if (healed) return healed;
+      }
       const contentType = res.headers["content-type"] || "";
       return { text: decodeBody(buf, contentType, rule && rule.charset), url: finalUrl, status, contentType };
     } catch (e) {

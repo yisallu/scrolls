@@ -31,8 +31,8 @@ const CHROME_KEY = "scrolls.readerChrome";
 const ORIGINAL_KEY = "scrolls.readerOriginal";
 const W2X_KEY = "scrolls.waifu2x";
 const FAVCAT_KEY = "scrolls.favcat"; // which of the site's folders to file into
-const PREFETCH = 4; // pages warmed ahead of the one on screen
-const W2X_PREFETCH = 3; // how many of those also get queued on the GPU
+const PREFETCH = 5; // pages warmed ahead of the one on screen
+const W2X_AHEAD = 4; // of those, how many also go to the GPU. One batch drains this while you read.
 
 // Denoise costs sharpness, and the first default (1) was too strong. Measured on a
 // real page against the true original as the ceiling — mean |∇| of the same crop:
@@ -86,6 +86,10 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
   // on a phone or an iPad over plain https, with nothing to install on that device.
   let w2x = readW2x();
   let w2xUp = false; // is the desktop GPU worker connected? asked once on open
+  // url -> { priority, promise, img, objUrl, ac }. The decoded neighbour is what makes
+  // the next page appear already sharp; the blob for pages further along just keeps
+  // the GPU busy and the bytes local.
+  const w2xJobs = new Map();
   // Favourite ON THE SITE'S ACCOUNT. Distinct from 我的片库's local star, which is why
   // the button lives in the reader and says so in its tooltip.
   const canFavorite = paged && !!site.canFavorite && !!gallery?.id;
@@ -160,11 +164,17 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
 
   /** Change a waifu2x setting: new params mean a different cache entry, so repaint. */
   function setW2xOpt(patch) {
+    // The cache key changed. Forget decoded pages, but leave a blob that is still
+    // on screen alone until paintPage has swapped it out — revoking it now blanks
+    // the page for as long as the new sample takes to arrive.
+    const stale = [...w2xJobs.values()];
+    w2xJobs.clear();
     w2x = { ...w2x, ...patch };
     saveW2x();
     paintW2xBar();
     syncW2xButton();
     if (mode === "page") paintPage();
+    for (const job of stale) disposeJob(job);
   }
 
   // 原图 wins over waifu2x when both are on. The server upscales the SAMPLE (that is
@@ -177,7 +187,10 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
     if (!btn) return;
     const shadowed = w2x.on && w2xUp && original;
     btn.classList.toggle("on", w2x.on && w2xUp && !shadowed);
-    btn.classList.toggle("busy", !!(w2xOn() && busyIdx === i));
+    const cur = items[i];
+    const job = cur && w2xOn() ? w2xJobs.get(pageUrl(cur, "w2x")) : null;
+    const showing = heldPage()?.dataset.page === String(i) && heldPage()?.dataset.variant === "w2x";
+    btn.classList.toggle("busy", !!(job && !job.img && !job.error && !showing));
     btn.title = shadowed
       ? "waifu2x:已让位给原图(原图本来就是真实像素)"
       : w2x.on
@@ -238,19 +251,109 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
 
   // ---- page mode ---------------------------------------------------------------
 
+  /** The page already on screen, ignoring the blurred thumbnail stand-in.
+   *  During a sharpen fade the upscale sits on top of the sample; that is the page. */
+  function heldPage() {
+    return (
+      stage.querySelector("img.lb-media.lb-upgrade") || stage.querySelector("img.lb-media:not(.lb-standin)")
+    );
+  }
+
+  function sameSrc(el, url) {
+    if (!el || !url) return false;
+    try {
+      return el.src === new URL(url, location.href).href;
+    } catch {
+      return el.src === url;
+    }
+  }
+
+  /**
+   * A gallery thumbnail blown up to the viewport, only for the moment before the first
+   * real page arrives. Sprite sheets (exhentai) are one cell, not the whole sheet.
+   */
+  function standIn(it) {
+    const t = it && it.thumb;
+    if (!t?.url) return null;
+    if (!(t.w && t.h)) return h("img.lb-standin", { src: t.url, alt: "" });
+    const k = Math.min((window.innerWidth || t.w) / t.w, (window.innerHeight || t.h) / t.h);
+    const box = h("div.lb-standin");
+    box.style.width = t.w + "px";
+    box.style.height = t.h + "px";
+    box.style.backgroundImage = cssUrl(t.url);
+    box.style.backgroundPosition = `-${t.x || 0}px -${t.y || 0}px`;
+    box.style.transform = `scale(${(k * 1.06).toFixed(3)})`;
+    return box;
+  }
+
   function paintPage() {
     scroller = null; // the strip is gone; the scroll handler must not read a detached node
     const it = items[i];
     const plain = srcFor(it);
-    if (plain) {
+    if (plain && !paged) {
+      // Single image: nothing to hold onto, and resolve() swaps this node's src.
       const shown = i;
       const img = h("img.lb-media", { src: plain, alt: "" });
       img.addEventListener("error", () => onPageError(shown, plain));
       watchVariantInfo(img);
       clear(stage).appendChild(img);
-      if (w2xOn()) requestW2x(shown);
+    } else if (plain) {
+      const shown = i;
+      const hold = heldPage();
+      // Fullscreen and the chrome rebuild call paint() again for the page you are
+      // already looking at. Swapping the <img> there would blank a loaded page.
+      const w2xUrl = w2xOn() ? pageUrl(it, "w2x") : "";
+      const job = w2xUrl ? w2xJobs.get(w2xUrl) : null;
+      const liveW2x = !!(hold && job?.img === hold);
+      if (
+        hold &&
+        hold.dataset.page === String(shown) &&
+        (liveW2x || sameSrc(hold, plain) || (w2xUrl && sameSrc(hold, w2xUrl)))
+      ) {
+        if (w2xUrl && !liveW2x) kickW2x(shown, 2, { decode: true });
+      } else if (job?.img) {
+        // Already decoded while you were on the previous page: show it, not the sample.
+        presentW2x(job.img, shown, { fade: false });
+      } else {
+        const img = h("img.lb-media", {
+          alt: "",
+          dataset: { variant: original ? "original" : "sample", page: String(shown) },
+        });
+        img.decoding = "async";
+        const reveal = () => {
+          if (shown !== i || mode !== "page" || !img.naturalWidth) return;
+          // The upscale won the race and is already up. Don't cover it with the sample.
+          const live = heldPage();
+          if (live?.dataset.variant === "w2x" && live.dataset.page === String(shown)) {
+            stage.classList.remove("waiting");
+            return;
+          }
+          if (!stage.contains(img)) clear(stage).appendChild(img);
+          stage.classList.remove("waiting");
+          revealW2x(shown);
+        };
+        img.addEventListener("load", reveal);
+        img.addEventListener("error", () => {
+          if (shown === i) stage.classList.remove("waiting");
+          onPageError(shown, plain);
+        });
+        watchVariantInfo(img);
+        // Keep the outgoing page (or a thumb) until this one has pixels. Clearing first
+        // is what made every turn a black screen for as long as the download took.
+        if (!hold) {
+          clear(stage);
+          const ph = standIn(it);
+          if (ph) stage.appendChild(ph);
+          else stage.appendChild(h("div.lb-loading", `第 ${i + 1} 页 · 载入中…`));
+        }
+        stage.classList.add("waiting");
+        img.src = plain;
+        if (img.complete && img.naturalWidth) reveal();
+        if (w2xOn()) kickW2x(shown, 2, { decode: true });
+      }
     } else {
       clear(stage).appendChild(h("div.lb-loading", `第 ${i + 1} 页 · 载入中…`));
+      stage.classList.remove("waiting");
     }
     if (!it) {
       ensureAt(i).then((got) => got && mode === "page" && paintPage());
@@ -263,37 +366,45 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
           else paintPage();
         },
       });
-      // Warm a WINDOW of upcoming pages, not just the next one: a waifu2x pass costs
-      // seconds, so the queue has to run several pages ahead of the reader to stay
-      // invisible. Missing index slices are pulled in on the way.
+      // Warm a WINDOW of upcoming pages, not just the next one. A batch of upscales
+      // finishes while this page is being read, so the next turn is already decoded.
+      // Missing index slices are pulled in on the way.
       for (let n = 1; n <= PREFETCH; n++) {
         const k = i + n;
         if (k >= total()) break;
         if (items[k]) prefetch(k);
         else ensureAt(k).then((got) => got && prefetch(k));
       }
+      if (w2xOn() && i > 0) {
+        if (items[i - 1]) kickW2x(i - 1, 0, { decode: true });
+        else ensureAt(i - 1).then((got) => got && kickW2x(i - 1, 0, { decode: true }));
+      }
+      trimW2x();
     }
     syncW2xButton();
     gallery?.onProgress?.(i);
     syncFoot();
   }
 
-  let busyIdx = -1;
-
   /**
    * Say which version of the page you are actually looking at, and at what resolution.
    * Without this the three variants are indistinguishable once the picture is fitted to
    * the screen — waifu2x can be working perfectly and look like it did nothing, which is
    * exactly the confusion that prompted adding it.
+   * Blob URLs carry no query, so the element itself records which variant it is.
    */
   function showVariantInfo(img) {
     if (!vinfoEl || !img) return;
     const short = W2X_MODELS.find(([id]) => id === w2x.model)?.[1] || w2x.model;
-    const label = /[?&]v=w2x/.test(img.src)
-      ? `waifu2x ${short}${w2x.noise >= 0 ? ` 降噪${w2x.noise}` : ""}`
-      : /[?&]v=original/.test(img.src)
-        ? "原图"
-        : "样本";
+    const kind =
+      img.dataset.variant ||
+      (/[?&]v=original/.test(img.src) ? "original" : /[?&]v=w2x/.test(img.src) ? "w2x" : "sample");
+    const label =
+      kind === "w2x"
+        ? `waifu2x ${short}${w2x.noise >= 0 ? ` 降噪${w2x.noise}` : ""}`
+        : kind === "original"
+          ? "原图"
+          : "样本";
     const dims = img.naturalWidth ? ` · ${img.naturalWidth}×${img.naturalHeight}` : "";
     vinfoEl.textContent = label + dims;
     vinfoEl.classList.toggle("hot", label !== "样本");
@@ -306,52 +417,200 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
     });
   }
 
-  /**
-   * Ask for the upscaled page. The server queues the job on the desktop worker and
-   * holds the request until it is ready, so this is a plain <img> load that may take
-   * seconds — fetched off-screen and swapped in only if you are still on that page.
-   * The sample stays visible throughout; there is never a spinner instead of a page.
-   */
-  function requestW2x(shown) {
-    const it = items[shown];
-    if (!it) return;
-    const url = pageUrl(it, "w2x");
-    if (shown === i) {
-      busyIdx = shown;
-      syncW2xButton();
+  function focusW2x(it, priority) {
+    api
+      .w2xFocus({
+        site: site.id,
+        id: it.id,
+        model: w2x.model,
+        noise: w2x.noise,
+        scale: w2x.scale,
+        priority,
+      })
+      .catch(() => {});
+  }
+
+  function disposeJob(job) {
+    job.ac?.abort();
+    const url = job.objUrl;
+    if (!url) return;
+    const img = job.img;
+    if (img?.isConnected) {
+      const obs = new MutationObserver(() => {
+        if (!img.isConnected) {
+          URL.revokeObjectURL(url);
+          obs.disconnect();
+        }
+      });
+      obs.observe(stage, { childList: true, subtree: true });
+    } else URL.revokeObjectURL(url);
+  }
+
+  /** Drop upscales that have fallen outside the window. The one on screen stays. */
+  function trimW2x() {
+    if (!w2xOn()) return;
+    const keep = new Set();
+    const last = Math.min(total() - 1, i + W2X_AHEAD);
+    for (let k = Math.max(0, i - 1); k <= last; k++) {
+      const it = items[k];
+      if (it?.id) keep.add(pageUrl(it, "w2x"));
     }
-    const probe = new Image();
-    probe.decoding = "async";
-    probe.addEventListener("load", () => {
-      if (busyIdx === shown) busyIdx = -1;
-      if (shown !== i || !w2xOn()) return syncW2xButton();
-      const cur = stage.querySelector("img.lb-media");
-      if (cur) {
-        cur.src = url;
-        watchVariantInfo(cur);
-      }
-      syncW2xButton();
+    for (const [url, job] of w2xJobs) {
+      if (keep.has(url)) continue;
+      disposeJob(job);
+      w2xJobs.delete(url);
+    }
+  }
+
+  function ensureDecoded(job) {
+    if (job.img) return Promise.resolve(job);
+    if (job.decoding) return job.decoding;
+    if (!job.objUrl) return Promise.resolve(job);
+    job.decoding = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = "sync";
+      img.onload = () => {
+        job.img = img;
+        resolve(job);
+      };
+      img.onerror = () => {
+        job.decoding = null;
+        reject(new Error("decode"));
+      };
+      img.src = job.objUrl;
     });
-    probe.addEventListener("error", async () => {
-      if (busyIdx === shown) busyIdx = -1;
+    return job.decoding;
+  }
+
+  /**
+   * Put a decoded upscale on the stage. `fade` is only for sharpening the page you
+   * are already looking at — a page turn uses the decoded bitmap directly, so there
+   * is no sample frame and no blank frame in between.
+   */
+  function presentW2x(img, idx, { fade }) {
+    if (idx !== i || mode !== "page") return;
+    stage.classList.remove("waiting");
+    img.alt = "";
+    img.dataset.variant = "w2x";
+    img.dataset.page = String(idx);
+    const hold = heldPage();
+    if (hold === img) {
+      showVariantInfo(img);
       syncW2xButton();
-      if (shown !== i) return;
-      // An <img> never says why it failed. Ask once, so "the desktop is off" reads
-      // as that instead of as a broken page.
-      try {
-        const r = await fetch(url, { headers: { Accept: "application/json" } });
-        if (r.ok) return;
-        const code = (await r.json().catch(() => ({}))).code || "";
-        if (code === "worker_offline") {
-          w2xUp = false;
-          syncW2xButton();
-          toast("电脑上的 waifu2x 工作进程没运行,已回到样本");
-        } else if (code) toast(`waifu2x:${code}`);
-      } catch {
-        /* offline; the sample is still on screen */
-      }
-    });
-    probe.src = url;
+      return;
+    }
+    const finish = () => {
+      // The fade stacks the upscale on the sample, and a fast page turn can leave
+      // both. Keep only the image we just committed.
+      stage.querySelectorAll(".lb-standin, .lb-loading, img.lb-media").forEach((n) => {
+        if (n !== img) n.remove();
+      });
+      img.className = "lb-media";
+      stage.classList.remove("waiting");
+      showVariantInfo(img);
+      syncW2xButton();
+    };
+    if (fade && hold && stage.contains(hold)) {
+      img.className = "lb-media lb-upgrade";
+      stage.appendChild(img);
+      let settled = false;
+      const done = () => {
+        if (settled || !stage.contains(img)) return;
+        settled = true;
+        if (idx !== i) {
+          img.remove();
+          return;
+        }
+        finish();
+      };
+      img.addEventListener("transitionend", (e) => {
+        if (e.propertyName === "opacity") done();
+      });
+      setTimeout(done, 280);
+      requestAnimationFrame(() => img.classList.add("show"));
+      return;
+    }
+    img.className = "lb-media lb-upgrade show";
+    stage.appendChild(img);
+    finish();
+  }
+
+  function revealW2x(idx) {
+    if (idx !== i || mode !== "page" || !w2xOn()) return;
+    const it = items[idx];
+    if (!it) return;
+    const job = w2xJobs.get(pageUrl(it, "w2x"));
+    if (!job?.img) return;
+    const hold = heldPage();
+    if (hold === job.img) return;
+    const fade = !!(hold && hold.dataset.page === String(idx) && hold.dataset.variant !== "w2x");
+    presentW2x(job.img, idx, { fade });
+  }
+
+  function failW2x(idx, err) {
+    syncW2xButton();
+    if (idx !== i || err?.name === "AbortError") return;
+    if (err.code === "worker_offline") {
+      w2xUp = false;
+      syncW2xButton();
+      paintW2xBar();
+      toast("电脑上的 waifu2x 工作进程没运行,已回到样本");
+    } else if (err.code) toast(`waifu2x:${err.code}`);
+  }
+
+  /**
+   * Fetch one upscale off the request that paints the sample. Priority is a header,
+   * not a query param, so every caller shares a single URL and a single in-flight
+   * promise. The sample stays on screen until the decoded upscale is ready to cover it.
+   */
+  function kickW2x(idx, priority, { decode = false } = {}) {
+    const it = items[idx];
+    if (!w2xOn() || !it?.id) return;
+    const url = pageUrl(it, "w2x");
+    let job = w2xJobs.get(url);
+    if (job?.error) {
+      w2xJobs.delete(url);
+      job = null;
+    }
+    if (!job) {
+      const ac = new AbortController();
+      job = { priority, img: null, objUrl: "", ac, error: null, decoding: null };
+      job.promise = fetch(url, {
+        headers: { "X-W2x-Priority": String(priority) },
+        signal: ac.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            let code = "";
+            try {
+              code = (await res.json()).code || "";
+            } catch {
+              /* an <img> used to hide this; a fetch can read it */
+            }
+            const err = new Error(code || `http ${res.status}`);
+            err.code = code;
+            throw err;
+          }
+          const blob = await res.blob();
+          if (ac.signal.aborted) throw new DOMException("aborted", "AbortError");
+          job.objUrl = URL.createObjectURL(blob);
+          return job;
+        })
+        .catch((err) => {
+          job.error = err;
+          failW2x(idx, err);
+          throw err;
+        });
+      w2xJobs.set(url, job);
+      if (idx === i) syncW2xButton();
+    } else if (priority > job.priority) {
+      job.priority = priority;
+      focusW2x(it, priority);
+    }
+    job.promise
+      .then(() => (decode || Math.abs(idx - i) <= 1 ? ensureDecoded(job) : job))
+      .then(() => revealW2x(idx))
+      .catch(() => {});
   }
 
   function prefetch(idx) {
@@ -362,12 +621,11 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
     const warm = new Image(); // the browser cache does the rest
     warm.decoding = "async";
     warm.src = src;
-    // Warm the GPU queue too. The server dispatches serially, so asking a few pages
-    // ahead is what makes the upscale invisible while you read.
-    if (w2xOn() && idx <= i + W2X_PREFETCH) {
-      const ahead = new Image();
-      ahead.decoding = "async";
-      ahead.src = pageUrl(it, "w2x");
+    if (w2xOn() && idx <= i + W2X_AHEAD) {
+      const dist = idx - i;
+      // 2 is the page on screen (requested separately). 1 jumps the queue ahead of
+      // the rest of the lookahead, which stays at 0.
+      kickW2x(idx, dist <= 1 ? 1 : 0, { decode: dist <= 1 });
     }
   }
 
@@ -903,11 +1161,14 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
         return;
       }
     }
+    const stale = on ? [] : [...w2xJobs.values()];
+    if (!on) w2xJobs.clear();
     w2x = { ...w2x, on: !!on };
     saveW2x();
     syncW2xButton();
     paintW2xBar();
     paintPage();
+    for (const job of stale) disposeJob(job);
     toast(on ? `waifu2x 已开启 · ${w2x.model.replace("models-", "")} · 电脑显卡` : "waifu2x 已关闭");
   }
 
@@ -996,6 +1257,11 @@ export function openViewer({ items, index = 0, site, gallery = null }) {
    * back() there would bounce you a page further than you asked for.
    */
   function close({ user = false } = {}) {
+    for (const job of w2xJobs.values()) {
+      job.ac?.abort();
+      if (job.objUrl) URL.revokeObjectURL(job.objUrl);
+    }
+    w2xJobs.clear();
     if (nativeFs()) document.exitFullscreen?.().catch(() => {});
     io?.disconnect();
     stripIo?.disconnect();

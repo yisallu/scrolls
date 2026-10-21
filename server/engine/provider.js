@@ -50,7 +50,14 @@ export async function providerList(rule, { params, page, kw } = {}) {
 export async function providerResolve(rule, id) {
   const d = await sidecarGet(`/${rule.provider}/resolve?id=${encodeURIComponent(id)}`);
   if (!d.url) throw httpErr(422, "未找到可播放的文件", "unresolvable");
-  return { url: proxiedMediaUrl(rule.id, d.url), raw: d.url, quality: d.quality || "", type: d.type || "" };
+  const isDirect =
+    rule.proxyMedia === false ||
+    rule.provider === "tgdm" ||
+    isProxiedUrl(d.url) ||
+    d.url.startsWith("/") ||
+    (process.env.PUBLIC_ORIGIN && d.url.startsWith(process.env.PUBLIC_ORIGIN));
+  const url = isDirect ? d.url : proxiedMediaUrl(rule.id, d.url);
+  return { url, raw: d.url, quality: d.quality || "", type: d.type || "" };
 }
 
 export async function providerHealthy() {

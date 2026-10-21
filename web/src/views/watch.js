@@ -84,6 +84,27 @@ export default async function watchView(ctx) {
     if (source.kind === "hls") await ensureHls();
     if (ctx.signal.aborted) return root;
 
+    const loadingEl = mount.querySelector(".loading");
+    if (source.url.includes("/tgdm/") || site.provider === "tgdm") {
+      while (!ctx.signal.aborted) {
+        try {
+          const resp = await fetch(source.url, { method: "HEAD", signal: ctx.signal });
+          if (resp.status === 200 || resp.status === 206) break;
+          if (resp.status === 503) {
+            const rawPrep = resp.headers.get("x-prep") || "";
+            const prepMsg = rawPrep ? decodeURIComponent(rawPrep) : "准备中";
+            if (loadingEl) loadingEl.textContent = `视频准备中：${prepMsg}…`;
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+        } catch (e) {
+          if (ctx.signal.aborted) return root;
+        }
+        break;
+      }
+    }
+    if (ctx.signal.aborted) return root;
+
     player = createPlayer({
       onProgress: ({ position, duration, ended }) =>
         recordHistory({ ...entry, position: ended ? 0 : position, duration }, { flush: ended }),

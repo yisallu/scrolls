@@ -1,0 +1,24 @@
+{
+  "id": "saved",
+  "name": "我的收藏",
+  "type": "image",
+  "provider": "tgdm",
+  "version": 1,
+  "baseUrl": "https://web.telegram.org",
+  "allowedHosts": ["web.telegram.org", "web.sysmeng.com"],
+  "proxyImages": false,
+  "proxyMedia": false,
+  "discover": [
+    {
+      "name": "视频",
+      "params": { "chat": "s", "kind": "video" }
+    },
+    {
+      "name": "图片",
+      "params": { "chat": "s", "kind": "photo" }
+    }
+  ],
+  "search": {
+    "params": { "chat": "s" }
+  }
+}

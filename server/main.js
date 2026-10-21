@@ -17,6 +17,7 @@ import { createPageHandler, createPageLoader } from "./media/page.js";
 import { W2xBroker, registerW2xRoutes } from "./media/w2x.js";
 import { PageCache } from "./media/pagecache.js";
 import { Engine } from "./engine/ops.js";
+import { setCookieSink } from "./lib/fetcher.js";
 import { RuleStore } from "./store/rules.js";
 import { PrefsStore } from "./store/prefs.js";
 import { LibraryStore } from "./store/library.js";
@@ -31,6 +32,14 @@ const library = new LibraryStore();
 
 // A rule file changed on disk (hot reload) → its cached listings are stale.
 rules.onChange(() => engine.invalidate());
+
+// ExHentai answers an expired igneous cookie with an empty page. fetchText repairs
+// the cookie in memory; this writes it back so the next process start doesn't have
+// to rediscover the same failure. Rare (the cookie lives ~30 days) — the cache wipe
+// that a rule save causes is the right trade for not going blank again.
+setCookieSink((rule) => {
+  rules.save(rule).catch((e) => log.warn("session cookie persist failed:", e.message));
+});
 
 const pageCache = new PageCache();
 const pageLoader = createPageLoader(engine, pageCache);

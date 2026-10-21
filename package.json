@@ -11,7 +11,8 @@
     "start": "node server/main.js",
     "dev": "node --watch server/main.js",
     "test": "node --test \"test/*.test.js\"",
-    "build:standalone": "node tools/build-standalone.mjs"
+    "build:standalone": "node tools/build-standalone.mjs",
+    "w2x": "node tools/w2x-worker.mjs"
   },
   "dependencies": {
     "cheerio": "^1.0.0",

@@ -49,11 +49,14 @@ function loadToken() {
 }
 
 export class W2xBroker {
-  constructor() {
-    this.token = loadToken();
-    this.queue = []; // jobs waiting for a worker
+  constructor(opts = {}) {
+    this.token = opts.token || loadToken();
+    this.queue = []; // jobs waiting for a worker, highest priority first
     this.pending = new Map(); // jobId -> job currently with a worker
     this.waiters = []; // long-polling workers with no job yet
+    // Priority that arrived before the bytes were queued (the page became visible
+    // while its sample was still downloading). Consumed by the next submit of that key.
+    this.prefer = new Map();
     this.lastSeen = 0;
     this.done = 0;
     this.failed = 0;
@@ -72,27 +75,69 @@ export class W2xBroker {
     }
   }
 
-  /** Queue one image and resolve with the upscaled bytes. */
+  /**
+   * Queue one image and resolve with the upscaled bytes.
+   * `opts.priority` (0 lookahead, 1 next page, 2 the page on screen) decides who
+   * the idle worker is handed first. Same priority stays in arrival order.
+   */
   submit(buf, opts) {
     if (!this.online) throw httpErr(503, "waifu2x 工作机未连接", "worker_offline");
     if (this.queue.length >= MAX_QUEUE) throw httpErr(503, "waifu2x 队列已满", "worker_busy");
+    const key = opts.key || "";
+    const priority = Math.max(Number(opts.priority) || 0, this.prefer.get(key) || 0);
+    this.prefer.delete(key);
     return new Promise((resolve, reject) => {
       const job = {
         id: crypto.randomUUID(),
         buf,
-        opts,
+        key,
+        priority,
+        opts: { ...opts, priority },
         resolve,
         reject,
         timer: setTimeout(() => {
           this.pending.delete(job.id);
           this.queue = this.queue.filter((j) => j !== job);
+          this.prefer.delete(key);
           reject(httpErr(504, "waifu2x 超时", "worker_timeout"));
         }, JOB_TIMEOUT_MS),
       };
       job.timer.unref?.();
-      this.queue.push(job);
-      this.#dispatch();
+      this.#enqueue(job);
     });
+  }
+
+  /**
+   * The reader landed on a page that was only prefetched. Move it ahead of the
+   * lookahead, or remember the priority if the GPU job does not exist yet.
+   * @returns {boolean} whether this changed anything the worker has not taken.
+   */
+  boost(key, priority = 2) {
+    priority = Math.max(0, Math.min(2, Number(priority) || 0));
+    if (!key || priority <= 0) return false;
+    const idx = this.queue.findIndex((j) => j.key === key);
+    if (idx !== -1) {
+      const job = this.queue[idx];
+      if (priority <= job.priority) return false;
+      this.queue.splice(idx, 1);
+      job.priority = priority;
+      job.opts = { ...job.opts, priority };
+      this.#enqueue(job);
+      return true;
+    }
+    for (const job of this.pending.values()) if (job.key === key) return false;
+    const prev = this.prefer.get(key) || 0;
+    if (priority <= prev) return false;
+    this.prefer.set(key, priority);
+    return true;
+  }
+
+  /** Insert by priority. Caller must not already have `job` in the queue. */
+  #enqueue(job) {
+    const idx = this.queue.findIndex((j) => j.priority < job.priority);
+    if (idx === -1) this.queue.push(job);
+    else this.queue.splice(idx, 0, job);
+    this.#dispatch();
   }
 
   #dispatch() {

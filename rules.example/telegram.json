@@ -1,0 +1,20 @@
+{
+  "id": "telegram",
+  "name": "Telegram 频道",
+  "type": "image",
+  "provider": "telegram",
+  "version": 1,
+  "baseUrl": "https://t.me",
+  "allowedHosts": ["t.me", "telesco.pe"],
+  "proxyImages": true,
+  "postUrl": "https://t.me/{id}",
+  "discover": [
+    {
+      "name": "频道动态",
+      "params": { "channel": "telegram" }
+    }
+  ],
+  "search": {
+    "params": {}
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "hermes",
+  "name": "Hermes 生成",
+  "type": "image",
+  "provider": "tgdm",
+  "version": 2,
+  "baseUrl": "https://web.telegram.org",
+  "allowedHosts": ["web.telegram.org", "web.sysmeng.com"],
+  "proxyImages": false,
+  "proxyMedia": false,
+  "discover": [
+    {
+      "name": "视频",
+      "params": { "chat": "h", "kind": "video" }
+    },
+    {
+      "name": "图片",
+      "params": { "chat": "h", "kind": "photo" }
+    }
+  ],
+  "search": {
+    "params": { "chat": "h" }
+  }
+}

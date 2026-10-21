@@ -78,6 +78,8 @@ export const api = {
   pageUrl: ({ site, id, variant, model, noise, scale }) =>
     "/api" + "/page" + qs({ site, id, v: variant || "", model, noise, scale }),
   w2xOnline: (signal) => request("/w2x/online", { signal }),
+  // Raise a page the GPU already has queued, without changing the image URL.
+  w2xFocus: (params) => request("/w2x/focus" + qs(params)),
 
   // Favourites on the SITE's account (exhentai), not the local library in 我的片库.
   favoriteState: (params, signal) => request("/favorite" + qs(params), { signal }),
